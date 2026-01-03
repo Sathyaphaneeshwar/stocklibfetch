@@ -183,7 +183,20 @@ def parse_html_content(html_content):
                     all_links.append({'date': date_sort, 'type': 'Transcript', 'url': link_tag['href'], 'display_name': f"{date_display} Transcript"})
                 elif 'PPT' in link_tag.text:
                     all_links.append({'date': date_sort, 'type': 'PPT', 'url': link_tag['href'], 'display_name': f"{date_display} Presentation"})
-                    
+
+    # Credit Ratings
+    for link in soup.select('.credit-ratings ul.list-links li a'):
+         date_elem = link.select_one('.ink-600')
+         date_str = date_elem.text.strip() if date_elem else ""
+         clean_text = link.text.strip()
+         title = clean_text.replace(date_str, '').strip()
+         
+         display_name = f"{title} ({date_str})" if date_str else title
+         if len(display_name) > 60: display_name = display_name[:57] + "..."
+         
+         all_links.append({'date': '9999', 'type': 'Credit_Rating', 'url': link['href'], 'display_name': display_name})
+
+
     return sorted(all_links, key=lambda x: x['date'], reverse=True)
 
 # --- Session State Management ---
@@ -191,7 +204,7 @@ def parse_html_content(html_content):
 if 'search_performed' not in st.session_state:
     st.session_state.search_performed = False
 if 'documents' not in st.session_state:
-    st.session_state.documents = {'Annual_Report': [], 'Transcript': [], 'PPT': []}
+    st.session_state.documents = {'Annual_Report': [], 'Transcript': [], 'PPT': [], 'Credit_Rating': []}
 if 'selections' not in st.session_state:
     st.session_state.selections = {} # Key: url, Value: bool
 
@@ -221,7 +234,7 @@ def perform_search():
     links = parse_html_content(result)
     
     # Group by type
-    docs = {'Annual_Report': [], 'Transcript': [], 'PPT': []}
+    docs = {'Annual_Report': [], 'Transcript': [], 'PPT': [], 'Credit_Rating': []}
     selections = {}
     
     for link in links:
@@ -236,6 +249,7 @@ def perform_search():
     st.session_state.select_all_Annual_Report = True
     st.session_state.select_all_Transcript = True
     st.session_state.select_all_PPT = True
+    st.session_state.select_all_Credit_Rating = True
 
 
 # --- Helpers for Auto Download ---
@@ -280,73 +294,39 @@ with col_search_mid:
 st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True) # Spacer
 
 # Main Content Grid
+# Main Content Grid
 if st.session_state.search_performed:
     
-    grid_col1, grid_col2, grid_col3 = st.columns(3)
+    # 4 Columns for: Annual Reports, Transcripts, PPTs, Credit Ratings
+    grid_cols = st.columns(4)
     
-    # --- Column 1: Annual Reports ---
-    with grid_col1:
-        st.markdown(
-            f"""<div style='background:#111; border:1px solid #333; padding:10px; border-radius:5px 5px 0 0; display:flex; justify-content:space-between; align-items:center;'>
-            <span style='color:white; font-weight:600;'>Annual Reports</span>
-            </div>""", 
-            unsafe_allow_html=True
-        )
-        
-        select_all_ar = st.checkbox("Select All", key="select_all_Annual_Report", 
-                    on_change=toggle_category, args=("Annual_Report", "select_all_Annual_Report"))
-        
-        # Reduced Height for Single Screen
-        with st.container(height=380, border=True):
-            if not st.session_state.documents['Annual_Report']:
-                st.info("No Annual Reports found.")
+    # --- Helper to render a column ---
+    def render_column(col, title, category, select_all_key):
+        with col:
+            st.markdown(
+                f"""<div style='background:#111; border:1px solid #333; padding:10px; border-radius:5px 5px 0 0; display:flex; justify-content:space-between; align-items:center;'>
+                <span style='color:white; font-weight:600; font-size:0.9rem;'>{title}</span>
+                </div>""", 
+                unsafe_allow_html=True
+            )
             
-            for doc in st.session_state.documents['Annual_Report']:
-                is_selected = st.session_state.selections.get(doc['url'], False)
-                checked = st.checkbox(doc['display_name'], value=is_selected, key=doc['url'])
-                st.session_state.selections[doc['url']] = checked
-
-    # --- Column 2: Transcripts ---
-    with grid_col2:
-        st.markdown(
-            f"""<div style='background:#111; border:1px solid #333; padding:10px; border-radius:5px 5px 0 0; display:flex; justify-content:space-between; align-items:center;'>
-            <span style='color:white; font-weight:600;'>Transcripts</span>
-            </div>""", 
-            unsafe_allow_html=True
-        )
-        
-        select_all_tr = st.checkbox("Select All", key="select_all_Transcript",
-                    on_change=toggle_category, args=("Transcript", "select_all_Transcript"))
-        
-        with st.container(height=380, border=True):
-            if not st.session_state.documents['Transcript']:
-                st.info("No Transcripts found.")
+            st.checkbox("Select All", key=select_all_key, 
+                        on_change=toggle_category, args=(category, select_all_key))
+            
+            with st.container(height=380, border=True):
+                if not st.session_state.documents[category]:
+                    st.info(f"No {title} found.")
                 
-            for doc in st.session_state.documents['Transcript']:
-                is_selected = st.session_state.selections.get(doc['url'], False)
-                checked = st.checkbox(doc['display_name'], value=is_selected, key=doc['url'])
-                st.session_state.selections[doc['url']] = checked
+                for doc in st.session_state.documents[category]:
+                    is_selected = st.session_state.selections.get(doc['url'], False)
+                    checked = st.checkbox(doc['display_name'], value=is_selected, key=doc['url'])
+                    st.session_state.selections[doc['url']] = checked
 
-    # --- Column 3: Presentations ---
-    with grid_col3:
-        st.markdown(
-            f"""<div style='background:#111; border:1px solid #333; padding:10px; border-radius:5px 5px 0 0; display:flex; justify-content:space-between; align-items:center;'>
-            <span style='color:white; font-weight:600;'>Presentations</span>
-            </div>""", 
-            unsafe_allow_html=True
-        )
-        
-        select_all_ppt = st.checkbox("Select All", key="select_all_PPT",
-                    on_change=toggle_category, args=("PPT", "select_all_PPT"))
-        
-        with st.container(height=380, border=True):
-            if not st.session_state.documents['PPT']:
-                st.info("No Presentations found.")
-                
-            for doc in st.session_state.documents['PPT']:
-                is_selected = st.session_state.selections.get(doc['url'], False)
-                checked = st.checkbox(doc['display_name'], value=is_selected, key=doc['url'])
-                st.session_state.selections[doc['url']] = checked
+    # Render all 4 columns
+    render_column(grid_cols[0], "Annual Reports", "Annual_Report", "select_all_Annual_Report")
+    render_column(grid_cols[1], "Transcripts", "Transcript", "select_all_Transcript")
+    render_column(grid_cols[2], "Presentations", "PPT", "select_all_PPT")
+    render_column(grid_cols[3], "Credit Ratings", "Credit_Rating", "select_all_Credit_Rating")
 
 
     # --- Download Section ---
@@ -354,7 +334,7 @@ if st.session_state.search_performed:
     
     # Calculate what to download
     to_download = []
-    for cat in ['Annual_Report', 'Transcript', 'PPT']:
+    for cat in ['Annual_Report', 'Transcript', 'PPT', 'Credit_Rating']:
         for doc in st.session_state.documents[cat]:
             if st.session_state.selections.get(doc['url'], False):
                 to_download.append(doc)
