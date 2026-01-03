@@ -1,4 +1,4 @@
-# StockLib 📚
+# Stocks Document Fetcher 
 
 A Streamlit application for analyzing stocks and managing financial documents.
 
